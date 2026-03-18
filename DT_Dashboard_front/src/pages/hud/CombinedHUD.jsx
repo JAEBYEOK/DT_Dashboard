@@ -64,7 +64,7 @@ export default function CombinedHUD() {
   const optionTrafficData = useMemo(() => {
     return filteredTrafficData.map(data => {
       const multiplier = 1.0 + Math.random() * 2.0; 
-      return { ...data, ?�계_?�: Math.floor((data.?�계_?� || 0) * multiplier) };
+      return { ...data, 소계_대: Math.floor((data.소계_대 || 0) * multiplier) };
     });
   }, [filteredTrafficData]);
 

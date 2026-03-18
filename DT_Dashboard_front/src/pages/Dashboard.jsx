@@ -88,7 +88,7 @@ export default function Dashboard() {
   const optionTrafficData = useMemo(() => {
     return filteredTrafficData.map(data => {
       const multiplier = 1.0 + Math.random() * 2.0; 
-      return { ...data, ?�계_?�: Math.floor((data.?�계_?� || 0) * multiplier) };
+      return { ...data, 소계_대: Math.floor((data.소계_대 || 0) * multiplier) };
     });
   }, [filteredTrafficData]);
 
@@ -99,7 +99,7 @@ export default function Dashboard() {
     data.forEach(d => {
       const dirCode = d.direction_eng || ''; 
       const origin = dirCode.charAt(0); 
-      const vol = d.?�계_?� || 0;
+      const vol = d.소계_대 || 0;
       if (dirs[origin] !== undefined) { dirs[origin] += vol; totalVol += vol; }
     });
     if (totalVol === 0) return { volume: 0, delay: 0, los: 'A' };
