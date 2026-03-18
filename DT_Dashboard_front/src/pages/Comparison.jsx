@@ -13,7 +13,7 @@ import IntersectionMap from "@/components/dashboard/IntersectionMap";
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "../components/ui/AnimatedCounter";
 
-const API_URL = 'https://dt-dashboard-back.onrender.com/api';
+const API_URL = 'https://df-dashboard-back.onrender.com/api';
 
 // [Animation Variants]
 const containerVariants = {
@@ -89,7 +89,7 @@ export default function Comparison() {
     return <div className="p-6 h-screen flex flex-col gap-6"><Skeleton className="h-12 w-1/3" /><div className="flex-1 grid grid-cols-12 gap-6"><Skeleton className="col-span-4 h-full" /><Skeleton className="col-span-8 h-full" /></div></div>;
   }
 
-  // --- 시각화 컴포넌트 ---
+  // --- ?�각??컴포?�트 ---
   const RenderSimpleBar = ({ base, option, color }) => {
     const data = [{ name: 'BEFORE', value: base }, { name: 'AFTER', value: option }];
     return (

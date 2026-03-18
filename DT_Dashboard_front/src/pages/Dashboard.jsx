@@ -13,9 +13,9 @@ import IntersectionMap from "../components/dashboard/IntersectionMap";
 import TrafficVolumeDisplay from "../components/dashboard/TrafficVolumeDisplay";
 import { AnimatedCounter } from "../components/ui/AnimatedCounter"; // [Motion]
 
-const API_URL = 'https://dt-dashboard-back.onrender.com/api';
+const API_URL = 'https://df-dashboard-back.onrender.com/api';
 
-// [Animation Variants] 등장 애니메이션 설정
+// [Animation Variants] ?�장 ?�니메이???�정
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -88,7 +88,7 @@ export default function Dashboard() {
   const optionTrafficData = useMemo(() => {
     return filteredTrafficData.map(data => {
       const multiplier = 1.0 + Math.random() * 2.0; 
-      return { ...data, 소계_대: Math.floor((data.소계_대 || 0) * multiplier) };
+      return { ...data, ?�계_?�: Math.floor((data.?�계_?� || 0) * multiplier) };
     });
   }, [filteredTrafficData]);
 
@@ -99,7 +99,7 @@ export default function Dashboard() {
     data.forEach(d => {
       const dirCode = d.direction_eng || ''; 
       const origin = dirCode.charAt(0); 
-      const vol = d.소계_대 || 0;
+      const vol = d.?�계_?� || 0;
       if (dirs[origin] !== undefined) { dirs[origin] += vol; totalVol += vol; }
     });
     if (totalVol === 0) return { volume: 0, delay: 0, los: 'A' };
@@ -126,7 +126,7 @@ export default function Dashboard() {
   }
 
   return (
-    // [Motion] 메인 컨테이너
+    // [Motion] 메인 컨테?�너
     <motion.div 
       className="w-full max-w-[1920px] mx-auto p-4 lg:p-6 flex flex-col h-[calc(100vh-20px)] overflow-hidden"
       variants={containerVariants}
@@ -137,7 +137,7 @@ export default function Dashboard() {
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight flex items-center gap-2">
-          {/* 아이콘 회전 효과 */}
+          {/* ?�이�??�전 ?�과 */}
           <motion.div 
             initial={{ rotate: -180, opacity: 0 }} 
             animate={{ rotate: 0, opacity: 1 }} 
@@ -152,12 +152,12 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0">
         
-        {/* [Left Map] 3D 효과를 위한 hover scale */}
+        {/* [Left Map] 3D ?�과�??�한 hover scale */}
         <motion.div variants={itemVariants} className="lg:col-span-4 xl:col-span-3 h-full min-h-[400px]">
           <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border shadow-md h-full flex flex-col overflow-hidden hover:shadow-xl transition-all duration-300 transform">
              <CardHeader className="border-b border-slate-50 dark:border-dashdark-border py-3 px-4 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
                 <CardTitle className="text-slate-800 dark:text-white flex items-center gap-2 text-sm font-bold">
-                  <Activity className="w-4 h-4 text-violet-600 animate-pulse" /> {/* 맥박 효과 */}
+                  <Activity className="w-4 h-4 text-violet-600 animate-pulse" /> {/* 맥박 ?�과 */}
                   {t('dashMapTitle')}
                 </CardTitle>
              </CardHeader>
@@ -185,7 +185,7 @@ export default function Dashboard() {
                   whileHover={{ y: -5, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
                   className="p-4 bg-white dark:bg-dashdark-card rounded-xl border border-slate-200 dark:border-dashdark-border shadow-sm flex flex-col items-center justify-center gap-1 relative overflow-hidden group cursor-default"
                 >
-                  {/* 배경 데코레이션 (Glassmorphism Glow) */}
+                  {/* 배경 ?�코?�이??(Glassmorphism Glow) */}
                   <div className={`absolute -top-6 -right-6 w-20 h-20 ${item.bg} rounded-full blur-2xl opacity-60 group-hover:scale-150 transition-transform duration-700`}></div>
                   
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-dashdark-muted z-10 font-medium uppercase tracking-wider">
