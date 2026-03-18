@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from "@/components/theme-provider";
 // ▼▼▼ [추가] FilterProvider 임포트 ▼▼▼
 import { FilterProvider } from "@/context/FilterContext";
-// ▲▲▲ [추가] ▲▲▲
+import { LanguageProvider } from "@/context/LanguageContext";
 
 import Dashboard from './pages/Dashboard';
 import Layout from './Layout';
@@ -21,6 +21,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         {/* ▼▼▼ [수정] FilterProvider 적용 ▼▼▼ */}
+        <LanguageProvider>
         <FilterProvider>
           <BrowserRouter>
             <Routes>
@@ -34,7 +35,7 @@ function App() {
             </Routes>
           </BrowserRouter>
         </FilterProvider>
-        {/* ▲▲▲ [수정] ▲▲▲ */}
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
