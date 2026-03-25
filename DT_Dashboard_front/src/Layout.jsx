@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { LayoutDashboard, Route, GitCompare, BarChart3, Map, Globe } from "lucide-react";
+import { LayoutDashboard, Route, GitCompare, BarChart3, Map, Globe, Play, History, Gauge } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import DateSelector from "@/components/dashboard/DateSelector";
 import TimePeriodSelector from "@/components/dashboard/TimePeriodSelector";
@@ -33,11 +33,13 @@ export default function Layout({ children }) {
   
   const { language, setLanguage, t } = useLanguage();
 
-  // 순서 변경: 시뮬레이션 비교 -> 루트 평가 -> 교차로 성능 평가
   const navigationItems = [
+    { title: t('simulationRun'), url: createPageUrl("SimulationRun"), icon: Play },
     { title: t('simComparison'), url: createPageUrl("Comparison"), icon: GitCompare },
     { title: t('routePlanning'), url: createPageUrl("RoutePlanning"), icon: Route },
+    { title: t('intersectionEvaluation'), url: createPageUrl("IntersectionEvaluation"), icon: Gauge },
     { title: t('mainDashboard'), url: createPageUrl("Dashboard"), icon: LayoutDashboard },
+    { title: t('simulationHistory'), url: createPageUrl("SimulationHistory"), icon: History },
   ];
 
   return (

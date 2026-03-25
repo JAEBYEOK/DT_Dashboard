@@ -13,7 +13,7 @@ import IntersectionMap from "@/components/dashboard/IntersectionMap";
 import { motion } from "framer-motion";
 import { AnimatedCounter } from "../components/ui/AnimatedCounter";
 
-const API_URL = 'https://df-dashboard-back.onrender.com/api';
+const API_URL = 'http://localhost:3001/api';
 
 // [Animation Variants]
 const containerVariants = {
@@ -34,8 +34,9 @@ const itemVariants = {
 
 export default function Comparison() {
   const { t } = useLanguage();
+  const [selectedIntersection, setSelectedIntersection] = React.useState(null);
   
-  const { data: comparisons, isLoading: isComparisonsLoading } = useQuery({
+  const { data: allComparisons, isLoading: isComparisonsLoading } = useQuery({
     queryKey: ['simulationcomparison'],
     queryFn: () => axios.get(`${API_URL}/simulationcomparison`).then(res => res.data),
     initialData: [],
@@ -48,6 +49,11 @@ export default function Comparison() {
   });
 
   const isLoading = isComparisonsLoading || isIntersectionsLoading;
+
+  const comparisons = React.useMemo(() => {
+    if (!selectedIntersection) return allComparisons.filter(c => c.intersection_id === 1);
+    return allComparisons.filter(c => String(c.intersection_id) === String(selectedIntersection.intersection_id));
+  }, [selectedIntersection, allComparisons]);
 
   const baseData = comparisons.find(c => c.scenario_name === 'Base') || {};
   const optionData = comparisons.find(c => c.scenario_name === 'Option') || {};
@@ -89,7 +95,7 @@ export default function Comparison() {
     return <div className="p-6 h-screen flex flex-col gap-6"><Skeleton className="h-12 w-1/3" /><div className="flex-1 grid grid-cols-12 gap-6"><Skeleton className="col-span-4 h-full" /><Skeleton className="col-span-8 h-full" /></div></div>;
   }
 
-  // --- ?�각??컴포?�트 ---
+  // --- 시각화 컴포넌트 ---
   const RenderSimpleBar = ({ base, option, color }) => {
     const data = [{ name: 'BEFORE', value: base }, { name: 'AFTER', value: option }];
     return (
@@ -219,12 +225,18 @@ export default function Comparison() {
                 <CardHeader className="border-b border-slate-50 dark:border-dashdark-border py-3 px-4 shrink-0 bg-slate-900/50 backdrop-blur-sm">
                   <CardTitle className="text-slate-800 dark:text-white flex items-center gap-2 text-sm font-bold">
                     <Activity className="w-4 h-4 text-violet-600 animate-pulse" />
-                    {t('compMapTitle')} 
+                    {selectedIntersection
+                      ? `${selectedIntersection.intersection_name} (ID ${selectedIntersection.intersection_id})`
+                      : t('compMapTitle')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 flex-1 relative bg-slate-50">
                     <div className="absolute inset-0">
-                        <IntersectionMap intersections={intersections} />
+                        <IntersectionMap
+                          intersections={intersections}
+                          onSelectIntersection={setSelectedIntersection}
+                          selectedIntersectionId={selectedIntersection?.intersection_id}
+                        />
                     </div>
                 </CardContent>
             </Card>

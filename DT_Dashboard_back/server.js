@@ -7,12 +7,20 @@ const Intersection = require('./models/Intersection');
 const TrafficData = require('./models/TrafficData');
 const TravelTime = require('./models/TravelTime');
 const SimulationComparison = require('./models/SimulationComparison');
+const TrajStats = require('./models/TrajStats');
+const TrajTimeSeries = require('./models/TrajTimeSeries');
+const simulationRoutes = require('./routes/simulations');
+const resultRoutes = require('./routes/results');
+const systemRoutes = require('./routes/system');
 
 const app = express();
 const port = 3001; 
 
 app.use(cors());
 app.use(express.json());
+app.use('/api', simulationRoutes);
+app.use('/api', resultRoutes);
+app.use('/api', systemRoutes);
 
 // --- MongoDB 연결 ---
 const mongoURI = process.env.MONGO_URI || 'mongodb://cjd06222:cjh76039677%40@ac-abu5muz-shard-00-00.v2qwyt7.mongodb.net:27017,ac-abu5muz-shard-00-01.v2qwyt7.mongodb.net:27017,ac-abu5muz-shard-00-02.v2qwyt7.mongodb.net:27017/Traffic_DB?ssl=true&authSource=admin&replicaSet=atlas-diwe9c-shard-0';
@@ -73,17 +81,86 @@ app.get('/api/traveltime', async (req, res) => {
   }
 });
 
-// 4. 모든 시뮬레이션 비교 데이터 가져오기
+// 4. 시뮬레이션 비교 데이터 가져오기 (intersection_id 필터 지원)
 app.get('/api/simulationcomparison', async (req, res) => {
   try {
-    const data = await SimulationComparison.find();
+    const { intersection_id } = req.query;
+    const query = intersection_id ? { intersection_id: Number(intersection_id) } : {};
+    const data = await SimulationComparison.find(query);
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 5. 사용 가능한 지역 목록 조회 API
+// 5. 궤적 집계 통계 (교차로별 실제 시뮬레이션 데이터)
+app.get('/api/trajstats', async (req, res) => {
+  try {
+    const { intersection_id } = req.query;
+    const query = intersection_id ? { intersection_id: Number(intersection_id) } : {};
+    const data = await TrajStats.find(query);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 6. 궤적 시계열 — 현재 simtime 기준 30초 롤링 윈도우 집계
+app.get('/api/trajlive', async (req, res) => {
+  try {
+    const { intersection_id, simtime } = req.query;
+    if (!simtime) return res.json([]);
+    const t = parseFloat(simtime);
+    const windowSec = 30; // 앞뒤 15초 = 30초 윈도우
+    // 해당 윈도우와 겹치는 모든 버킷 조회
+    const query = {
+      time_start: { $lt: t + windowSec / 2 },
+      time_end:   { $gt: t - windowSec / 2 },
+    };
+    if (intersection_id) query.intersection_id = Number(intersection_id);
+    const buckets = await TrajTimeSeries.find(query);
+
+    if (buckets.length === 0) return res.json([]);
+
+    // 여러 버킷을 하나로 합산
+    const merged = buckets.reduce((acc, b) => {
+      const vehicleSet = new Set([...(acc._ids || [])]);
+      acc.vehicle_count   = (acc.vehicle_count   || 0) + b.vehicle_count;
+      acc.car_count       = (acc.car_count       || 0) + b.car_count;
+      acc.van_count       = (acc.van_count       || 0) + b.van_count;
+      const totalObs      = (acc._obs || 0) + (b.vehicle_count > 0 ? 1 : 0);
+      acc._obs            = totalObs;
+      const prevAvg       = acc.avg_speed_kmh || 0;
+      acc.avg_speed_kmh   = totalObs > 1
+        ? parseFloat(((prevAvg * (totalObs - 1) + b.avg_speed_kmh) / totalObs).toFixed(1))
+        : b.avg_speed_kmh;
+      acc.intersection_id = b.intersection_id;
+      acc.time_start      = Math.min(acc.time_start ?? Infinity, b.time_start);
+      acc.time_end        = Math.max(acc.time_end   ?? 0,        b.time_end);
+      return acc;
+    }, {});
+
+    res.json([merged]);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 7. simtime 범위 메타데이터 (프론트에서 슬라이더 범위 설정용)
+app.get('/api/trajlive/meta', async (req, res) => {
+  try {
+    const minDoc = await TrajTimeSeries.findOne().sort({ time_start: 1 }).select('time_start');
+    const maxDoc = await TrajTimeSeries.findOne().sort({ time_end: -1 }).select('time_end');
+    res.json({
+      time_min: minDoc?.time_start ?? 1800,
+      time_max: maxDoc?.time_end   ?? 1910,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 8. 사용 가능한 지역 목록 조회 API
 app.get('/api/regions', async (req, res) => {
   try {
     const regions = await Intersection.distinct('region');
