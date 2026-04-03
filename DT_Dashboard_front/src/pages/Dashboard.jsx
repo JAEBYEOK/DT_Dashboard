@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart2, Database, Filter, Target, Activity, Car, Clock, FileText, LayoutDashboard, Gauge, Users, Zap } from 'lucide-react';
+import { BarChart2, Database, Filter, Target, Activity, Car, Clock, FileText, LayoutDashboard } from 'lucide-react';
 import { useFilter } from "@/context/FilterContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { motion } from "framer-motion"; // [Motion]
@@ -11,11 +11,12 @@ import { motion } from "framer-motion"; // [Motion]
 // Components
 import IntersectionMap from "../components/dashboard/IntersectionMap";
 import TrafficVolumeDisplay from "../components/dashboard/TrafficVolumeDisplay";
+import VissimNetworkStatus from "../components/dashboard/VissimNetworkStatus";
 import { AnimatedCounter } from "../components/ui/AnimatedCounter"; // [Motion]
 
 const API_URL = 'http://localhost:3001/api';
 
-// [Animation Variants] ?? ????? ??
+// [Animation Variants] 등장 애니메이션 설정
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -37,23 +38,6 @@ const itemVariants = {
 export default function Dashboard() {
   const { t } = useLanguage();
   const [selectedIntersection, setSelectedIntersection] = useState(null);
-
-  const handleIntersectionSelect = (intersection) => {
-    setSelectedIntersection(intersection);
-    const id = intersection.intersection_id;
-
-    // Unity ??? ????
-    window.__UNITY_MOVE_REQUEST__ = id;
-
-    // Title Hack (??)
-    document.title = `CLICKED:${id}`;
-    setTimeout(() => { document.title = "Dashboard"; }, 200);
-
-    // UWB JS Bridge (??)
-    if (window.uwb) {
-      window.uwb.ExecuteJsMethod("MoveToIntersection", Number(id));
-    }
-  };
   
   const { 
     selectedDate, timePeriod, 
@@ -70,12 +54,6 @@ export default function Dashboard() {
   const { data: allTrafficData, isLoading: isLoadingTraffic } = useQuery({
     queryKey: ['trafficData'],
     queryFn: () => axios.get(`${API_URL}/trafficdata`).then(res => res.data),
-    initialData: [],
-  });
-
-  const { data: allTrajStats } = useQuery({
-    queryKey: ['trajstats'],
-    queryFn: () => axios.get(`${API_URL}/trajstats`).then(res => res.data),
     initialData: [],
   });
 
@@ -137,13 +115,6 @@ export default function Dashboard() {
   const baseStats = calculateIntersectionStats(filteredTrafficData);
   const optionStats = calculateIntersectionStats(optionTrafficData);
 
-  const trajStat = useMemo(() => {
-    if (!selectedIntersection) return null;
-    return allTrajStats.find(
-      s => String(s.intersection_id) === String(selectedIntersection.intersection_id)
-    ) || null;
-  }, [selectedIntersection, allTrajStats]);
-
   const kpiItems = [
     { label: t('kpiTotalInt'), value: intersections.length, icon: BarChart2, color: 'text-slate-900 dark:text-white', bg: 'bg-slate-100 dark:bg-slate-800' },
     { label: t('kpiSelectedId'), value: selectedIntersection ? selectedIntersection.intersection_id : '-', icon: Target, color: 'text-amber-600', bg: 'bg-amber-100 dark:bg-amber-900/20' },
@@ -156,7 +127,7 @@ export default function Dashboard() {
   }
 
   return (
-    // [Motion] ?? ????
+    // [Motion] 메인 컨테이너
     <motion.div 
       className="w-full max-w-[1920px] mx-auto p-4 lg:p-6 flex flex-col h-[calc(100vh-20px)] overflow-hidden"
       variants={containerVariants}
@@ -167,7 +138,7 @@ export default function Dashboard() {
       {/* Header */}
       <motion.div variants={itemVariants} className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight flex items-center gap-2">
-          {/* ??? ?? ?? */}
+          {/* 아이콘 회전 효과 */}
           <motion.div 
             initial={{ rotate: -180, opacity: 0 }} 
             animate={{ rotate: 0, opacity: 1 }} 
@@ -182,12 +153,12 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 min-h-0">
         
-        {/* [Left Map] 3D ??? ?? hover scale */}
+        {/* [Left Map] 3D 효과를 위한 hover scale */}
         <motion.div variants={itemVariants} className="lg:col-span-4 xl:col-span-3 h-full min-h-[400px]">
           <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border shadow-md h-full flex flex-col overflow-hidden hover:shadow-xl transition-all duration-300 transform">
              <CardHeader className="border-b border-slate-50 dark:border-dashdark-border py-3 px-4 shrink-0 bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
                 <CardTitle className="text-slate-800 dark:text-white flex items-center gap-2 text-sm font-bold">
-                  <Activity className="w-4 h-4 text-violet-600 animate-pulse" /> {/* ?? ?? */}
+                  <Activity className="w-4 h-4 text-violet-600 animate-pulse" /> {/* 맥박 효과 */}
                   {t('dashMapTitle')}
                 </CardTitle>
              </CardHeader>
@@ -195,7 +166,7 @@ export default function Dashboard() {
                <div className="absolute inset-0">
                  <IntersectionMap
                     intersections={intersections}
-                    onSelectIntersection={handleIntersectionSelect}
+                    onSelectIntersection={setSelectedIntersection}
                     selectedIntersectionId={selectedIntersection?.intersection_id}
                   />
                </div>
@@ -215,7 +186,7 @@ export default function Dashboard() {
                   whileHover={{ y: -5, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
                   className="p-4 bg-white dark:bg-dashdark-card rounded-xl border border-slate-200 dark:border-dashdark-border shadow-sm flex flex-col items-center justify-center gap-1 relative overflow-hidden group cursor-default"
                 >
-                  {/* ?? ????? (Glassmorphism Glow) */}
+                  {/* 배경 데코레이션 (Glassmorphism Glow) */}
                   <div className={`absolute -top-6 -right-6 w-20 h-20 ${item.bg} rounded-full blur-2xl opacity-60 group-hover:scale-150 transition-transform duration-700`}></div>
                   
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-dashdark-muted z-10 font-medium uppercase tracking-wider">
@@ -227,6 +198,10 @@ export default function Dashboard() {
                 </motion.div>
             ))}
           </div>
+
+          <motion.div variants={itemVariants} className="shrink-0">
+            <VissimNetworkStatus selectedIntersection={selectedIntersection} />
+          </motion.div>
 
           {/* Charts Area */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[350px] shrink-0">
@@ -328,81 +303,6 @@ export default function Dashboard() {
                   </CardContent>
               </Card>
           </motion.div>
-
-          {/* Trajectory Stats Panel */}
-          {trajStat && (
-            <motion.div variants={itemVariants} className="shrink-0 mb-1">
-              <Card className="bg-white dark:bg-dashdark-card border-emerald-200 dark:border-emerald-900/50 shadow-sm hover:shadow-md transition-shadow duration-300">
-                <CardHeader className="py-3 px-4 border-b border-emerald-100 dark:border-emerald-900/30 shrink-0 bg-emerald-50/50 dark:bg-emerald-900/10">
-                  <CardTitle className="text-sm font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-emerald-500" />
-                    시뮬레이션 실측 데이터 (궤적 기반)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* 통과 차량 수 */}
-                    <div className="flex flex-col items-center justify-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800 gap-1">
-                      <Users className="w-5 h-5 text-emerald-500 mb-1" />
-                      <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold uppercase">통과 차량</div>
-                      <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300 flex items-baseline gap-1">
-                        <AnimatedCounter value={trajStat.vehicle_count} />
-                        <span className="text-xs font-normal text-emerald-500">대</span>
-                      </div>
-                      <div className="text-[10px] text-emerald-400 mt-0.5">
-                        승용 {trajStat.car_count} · 승합 {trajStat.van_count}
-                      </div>
-                    </div>
-
-                    {/* 평균 속도 */}
-                    <div className="flex flex-col items-center justify-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 gap-1">
-                      <Gauge className="w-5 h-5 text-blue-500 mb-1" />
-                      <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase">평균 속도</div>
-                      <div className="text-2xl font-black text-blue-700 dark:text-blue-300 flex items-baseline gap-1">
-                        <AnimatedCounter value={trajStat.avg_speed_kmh} />
-                        <span className="text-xs font-normal text-blue-500">km/h</span>
-                      </div>
-                      <div className="text-[10px] text-blue-400 mt-0.5">
-                        {trajStat.min_speed_kmh} ~ {trajStat.max_speed_kmh} km/h
-                      </div>
-                    </div>
-
-                    {/* 차종 비율 */}
-                    <div className="flex flex-col items-center justify-center p-3 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-100 dark:border-violet-800 gap-1">
-                      <Car className="w-5 h-5 text-violet-500 mb-1" />
-                      <div className="text-xs text-violet-600 dark:text-violet-400 font-semibold uppercase">차종 비율</div>
-                      <div className="w-full mt-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500 w-8 text-right">승용</span>
-                          <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-2">
-                            <div
-                              className="bg-violet-500 h-2 rounded-full transition-all duration-700"
-                              style={{ width: `${trajStat.vehicle_count > 0 ? Math.round(trajStat.car_count / trajStat.vehicle_count * 100) : 0}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-bold text-violet-600 w-7">
-                            {trajStat.vehicle_count > 0 ? Math.round(trajStat.car_count / trajStat.vehicle_count * 100) : 0}%
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500 w-8 text-right">승합</span>
-                          <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-2">
-                            <div
-                              className="bg-emerald-500 h-2 rounded-full transition-all duration-700"
-                              style={{ width: `${trajStat.vehicle_count > 0 ? Math.round(trajStat.van_count / trajStat.vehicle_count * 100) : 0}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-bold text-emerald-600 w-7">
-                            {trajStat.vehicle_count > 0 ? Math.round(trajStat.van_count / trajStat.vehicle_count * 100) : 0}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
 
         </div>
       </div>

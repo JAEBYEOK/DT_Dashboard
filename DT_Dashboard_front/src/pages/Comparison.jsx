@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import axios from 'axios';
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,29 +34,37 @@ const itemVariants = {
 
 export default function Comparison() {
   const { t } = useLanguage();
-  const [selectedIntersection, setSelectedIntersection] = React.useState(null);
+  const [selectedIntersection, setSelectedIntersection] = useState(null);
   
-  const { data: allComparisons, isLoading: isComparisonsLoading } = useQuery({
-    queryKey: ['simulationcomparison'],
-    queryFn: () => axios.get(`${API_URL}/simulationcomparison`).then(res => res.data),
-    initialData: [],
-  });
-
   const { data: intersections, isLoading: isIntersectionsLoading } = useQuery({
     queryKey: ['intersections'],
     queryFn: () => axios.get(`${API_URL}/intersections`).then(res => res.data),
     initialData: [],
   });
 
+  useEffect(() => {
+    if (!selectedIntersection && intersections.length > 0) {
+      setSelectedIntersection(intersections[0]);
+    }
+  }, [intersections, selectedIntersection]);
+
+  const selectedIntersectionId = selectedIntersection?.intersection_id;
+
+  const { data: comparison, isLoading: isComparisonsLoading } = useQuery({
+    queryKey: ['results-comparison', selectedIntersectionId],
+    enabled: Boolean(selectedIntersectionId),
+    queryFn: () =>
+      axios
+        .get(`${API_URL}/results/comparison`, {
+          params: { intersection_id: selectedIntersectionId },
+        })
+        .then((res) => res.data),
+    initialData: null,
+  });
+
   const isLoading = isComparisonsLoading || isIntersectionsLoading;
-
-  const comparisons = React.useMemo(() => {
-    if (!selectedIntersection) return allComparisons.filter(c => c.intersection_id === 1);
-    return allComparisons.filter(c => String(c.intersection_id) === String(selectedIntersection.intersection_id));
-  }, [selectedIntersection, allComparisons]);
-
-  const baseData = comparisons.find(c => c.scenario_name === 'Base') || {};
-  const optionData = comparisons.find(c => c.scenario_name === 'Option') || {};
+  const baseData = comparison?.base || {};
+  const optionData = comparison?.option || {};
 
   const getMetricValue = (data, type) => {
     if (!data) return 0;
@@ -225,9 +233,7 @@ export default function Comparison() {
                 <CardHeader className="border-b border-slate-50 dark:border-dashdark-border py-3 px-4 shrink-0 bg-slate-900/50 backdrop-blur-sm">
                   <CardTitle className="text-slate-800 dark:text-white flex items-center gap-2 text-sm font-bold">
                     <Activity className="w-4 h-4 text-violet-600 animate-pulse" />
-                    {selectedIntersection
-                      ? `${selectedIntersection.intersection_name} (ID ${selectedIntersection.intersection_id})`
-                      : t('compMapTitle')}
+                    {t('compMapTitle')} 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 flex-1 relative bg-slate-50">
@@ -235,7 +241,7 @@ export default function Comparison() {
                         <IntersectionMap
                           intersections={intersections}
                           onSelectIntersection={setSelectedIntersection}
-                          selectedIntersectionId={selectedIntersection?.intersection_id}
+                          selectedIntersectionId={selectedIntersectionId}
                         />
                     </div>
                 </CardContent>
@@ -244,6 +250,25 @@ export default function Comparison() {
 
         {/* Right Content */}
         <div className="lg:col-span-8 xl:col-span-9 h-full flex flex-col overflow-y-auto pr-1 custom-scrollbar">
+            <motion.div variants={itemVariants} className="mb-4 shrink-0">
+              <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border shadow-sm">
+                <CardContent className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-dashdark-muted">
+                        Selected Intersection
+                      </div>
+                      <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                        {selectedIntersection?.intersection_name || '-'}
+                      </div>
+                    </div>
+                    <div className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                      ID {selectedIntersectionId || '-'}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 md:grid-rows-3 xl:grid-rows-2 gap-4 h-full min-h-[600px]">
                 {metrics.map((metric) => {
                     const rawBase = getMetricValue(baseData, metric.key);

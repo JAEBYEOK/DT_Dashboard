@@ -23,7 +23,7 @@ app.use('/api', resultRoutes);
 app.use('/api', systemRoutes);
 
 // --- MongoDB 연결 ---
-const mongoURI = process.env.MONGO_URI || 'mongodb://cjd06222:cjh76039677%40@ac-abu5muz-shard-00-00.v2qwyt7.mongodb.net:27017,ac-abu5muz-shard-00-01.v2qwyt7.mongodb.net:27017,ac-abu5muz-shard-00-02.v2qwyt7.mongodb.net:27017/Traffic_DB?ssl=true&authSource=admin&replicaSet=atlas-diwe9c-shard-0';
+const mongoURI = process.env.MONGO_URI;
 
 mongoose.connect(mongoURI, {
     dbName: 'Traffic_DB'

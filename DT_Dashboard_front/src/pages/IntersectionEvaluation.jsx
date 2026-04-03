@@ -1,177 +1,227 @@
-import React from "react";
+import React, { useState } from "react";
+import axios from 'axios';
 import { useQuery } from "@tanstack/react-query";
-import { Gauge, Timer, TrafficCone, ChartColumnBig } from "lucide-react";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/context/LanguageContext";
-import { getIntersections } from "@/services/api";
-import { getIntersectionResult, getIntersectionResults } from "@/services/resultApi";
+import { motion } from "framer-motion";
+import { Activity, Gauge, Timer, AlertTriangle, BarChart3 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell
+} from 'recharts';
 
-function MetricCard({ title, value, unit, icon: Icon }) {
-  return (
-    <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-500 dark:text-dashdark-muted">{title}</p>
-            <div className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-              {value}
-              <span className="ml-1 text-sm font-medium text-slate-400">{unit}</span>
-            </div>
-          </div>
-          <div className="rounded-full bg-violet-100 p-3 text-violet-600 dark:bg-violet-900/20 dark:text-violet-300">
-            <Icon className="w-5 h-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const API_URL = 'http://localhost:3001/api';
+
+const LOS_COLORS = {
+  A: '#22c55e', B: '#84cc16', C: '#eab308',
+  D: '#f97316', E: '#ef4444', F: '#7f1d1d'
+};
 
 export default function IntersectionEvaluation() {
   const { t } = useLanguage();
-  const [selectedId, setSelectedId] = React.useState("");
+  const [selectedJobId, setSelectedJobId] = useState('');
 
-  const { data: intersections = [] } = useQuery({
-    queryKey: ["intersections"],
-    queryFn: getIntersections,
+  const { data: jobs = [], isLoading: jobsLoading } = useQuery({
+    queryKey: ['simulationsDone'],
+    queryFn: () => axios.get(`${API_URL}/simulations`, {
+      params: { status: 'done', limit: 50 }
+    }).then(res => res.data),
   });
 
-  const { data: intersectionResults = [] } = useQuery({
-    queryKey: ["intersection-results"],
-    queryFn: () => getIntersectionResults(),
+  const { data: kpiList = [], isLoading: kpiLoading } = useQuery({
+    queryKey: ['intersectionKpi', selectedJobId],
+    queryFn: () => axios.get(`${API_URL}/results/intersections`, {
+      params: selectedJobId ? { job_id: selectedJobId } : {}
+    }).then(res => res.data),
   });
 
-  React.useEffect(() => {
-    if (!selectedId && intersections.length > 0) {
-      setSelectedId(String(intersections[0].intersection_id));
-    }
-  }, [selectedId, intersections]);
+  const isLoading = jobsLoading || kpiLoading;
 
-  const { data: detail } = useQuery({
-    queryKey: ["intersection-detail", selectedId],
-    queryFn: () => getIntersectionResult(selectedId),
-    enabled: Boolean(selectedId),
-  });
+  const avgDelay = kpiList.length
+    ? kpiList.reduce((s, k) => s + (k.avg_delay || 0), 0) / kpiList.length
+    : 0;
+  const avgSpeed = kpiList.length
+    ? kpiList.reduce((s, k) => s + (k.avg_speed || 0), 0) / kpiList.length
+    : 0;
+  const worstLos = kpiList.reduce((w, k) => (k.los || 'A') > w ? (k.los || 'A') : w, 'A');
 
-  const topRows = intersectionResults.slice(0, 10);
+  const chartData = kpiList.map(k => ({
+    name: k.intersection_name || `ID ${k.intersection_id}`,
+    delay: parseFloat((k.avg_delay || 0).toFixed(1)),
+    los: k.los || 'A',
+  }));
 
   return (
-    <div className="w-full max-w-[1920px] mx-auto p-4 lg:p-6 flex flex-col h-[calc(100vh-20px)] overflow-hidden">
-      <div className="mb-4 shrink-0">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">
-          {t("evaluationTitle")}
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-dashdark-muted mt-1">
-          {t("evaluationDesc")}
-        </p>
+    <motion.div
+      className="max-w-6xl mx-auto p-4 lg:p-6 space-y-6"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 150, damping: 20 }}
+    >
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t('evalTitle')}</h1>
+          <p className="text-sm text-slate-500 dark:text-dashdark-muted mt-1">{t('evalDesc')}</p>
+        </div>
+        <div className="w-full sm:w-64">
+          <label className="text-xs font-semibold text-slate-500 dark:text-dashdark-muted uppercase tracking-wide block mb-1.5">
+            {t('selectJob')}
+          </label>
+          {jobsLoading ? <Skeleton className="h-10 w-full" /> : (
+            <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+              <SelectTrigger className="bg-white dark:bg-dashdark-bg">
+                <SelectValue placeholder={t('allJobs')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t('allJobs')}</SelectItem>
+                {jobs.map(j => (
+                  <SelectItem key={j.job_id} value={j.job_id}>{j.job_id}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 flex-1 min-h-0">
-        <div className="xl:col-span-4 flex flex-col gap-5">
-          <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border">
-            <CardHeader>
-              <CardTitle className="text-slate-900 dark:text-white text-base">
-                {t("selectIntersection")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select value={selectedId} onValueChange={setSelectedId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("selectIntersection")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {intersections.map((intersection) => (
-                    <SelectItem
-                      key={intersection.intersection_id}
-                      value={String(intersection.intersection_id)}
-                    >
-                      {intersection.intersection_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+        </div>
+      ) : kpiList.length === 0 ? (
+        <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border">
+          <CardContent className="p-12 flex flex-col items-center gap-3 text-slate-400">
+            <BarChart3 className="w-12 h-12" />
+            <p className="text-sm font-medium">{t('noKpiData')}</p>
+            <p className="text-xs text-center text-slate-300 dark:text-slate-600">{t('noKpiDesc')}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* KPI Summary */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: t('evalIntersections'), value: kpiList.length,           icon: Activity,      color: 'text-violet-500' },
+              { label: t('evalAvgDelay'),      value: `${avgDelay.toFixed(1)}s`, icon: Timer,         color: 'text-orange-500' },
+              { label: t('evalAvgSpeed'),      value: `${avgSpeed.toFixed(1)} km/h`, icon: Gauge,    color: 'text-blue-500'   },
+              { label: t('evalWorstLos'),      value: worstLos,                  icon: AlertTriangle, color: 'text-red-500'    },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <Card key={label} className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Icon className={`w-8 h-8 ${color}`} />
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-dashdark-muted">{label}</p>
+                    <p className="text-xl font-black text-slate-800 dark:text-dashdark-text">{value}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-          <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border flex-1 min-h-0">
-            <CardHeader>
-              <CardTitle className="text-slate-900 dark:text-white text-base">
-                {t("topIntersections")}
+          {/* Delay Chart */}
+          <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border">
+            <CardHeader className="py-3 px-4 border-b border-slate-100 dark:border-dashdark-border">
+              <CardTitle className="text-sm font-bold text-slate-700 dark:text-dashdark-text flex items-center gap-2">
+                <Timer className="w-4 h-4 text-violet-500" />
+                {t('evalDelayChart')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="overflow-y-auto">
-              <div className="space-y-2">
-                {topRows.map((row) => (
-                  <button
-                    key={row.intersection_id}
-                    type="button"
-                    onClick={() => setSelectedId(String(row.intersection_id))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left dark:border-dashdark-border"
-                  >
-                    <div className="font-semibold text-slate-800 dark:text-white">
-                      {row.intersection_name || `Intersection ${row.intersection_id}`}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-dashdark-muted">
-                      throughput {row.throughput ?? 0} / speed {row.avg_speed ?? 0}
-                    </div>
-                  </button>
+            <CardContent className="p-4">
+              <div className="h-60">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 50 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 10 }}
+                      angle={-35}
+                      textAnchor="end"
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} unit="s" />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '8px', border: 'none', fontSize: 12 }}
+                      formatter={v => [`${v}s`, t('evalAvgDelay')]}
+                    />
+                    <Bar dataKey="delay" radius={[4, 4, 0, 0]} barSize={30}>
+                      {chartData.map((entry, i) => (
+                        <Cell key={i} fill={LOS_COLORS[entry.los] || '#8b5cf6'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {/* LOS Legend */}
+              <div className="flex gap-3 mt-2 flex-wrap justify-center">
+                {Object.entries(LOS_COLORS).map(([los, color]) => (
+                  <div key={los} className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+                    <span className="text-[10px] font-bold text-slate-500">LOS {los}</span>
+                  </div>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        <div className="xl:col-span-8 flex flex-col gap-5">
-          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <MetricCard title={t("los")} value={detail?.los || "N/A"} unit="" icon={Gauge} />
-            <MetricCard title={t("delay")} value={detail?.avg_delay ?? 0} unit="s" icon={Timer} />
-            <MetricCard title={t("queue")} value={detail?.queue_length ?? 0} unit="veh" icon={TrafficCone} />
-            <MetricCard title={t("volume")} value={detail?.throughput ?? 0} unit="veh" icon={ChartColumnBig} />
-          </div>
-
-          <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border flex-1">
-            <CardHeader>
-              <CardTitle className="text-slate-900 dark:text-white text-base">
-                {detail?.intersection_name || t("evaluationSummary")}
+          {/* KPI Table */}
+          <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border overflow-hidden">
+            <CardHeader className="py-3 px-4 border-b border-slate-100 dark:border-dashdark-border">
+              <CardTitle className="text-sm font-bold text-slate-700 dark:text-dashdark-text flex items-center gap-2">
+                <Activity className="w-4 h-4 text-violet-500" />
+                {t('evalKpiTable')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-dashdark-bg">
-                <div className="text-slate-500 dark:text-dashdark-muted">Avg Speed</div>
-                <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">
-                  {detail?.avg_speed ?? 0} km/h
-                </div>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-dashdark-bg">
-                <div className="text-slate-500 dark:text-dashdark-muted">V/C Ratio</div>
-                <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">
-                  {detail?.vc_ratio ?? 0}
-                </div>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-dashdark-bg">
-                <div className="text-slate-500 dark:text-dashdark-muted">Max Queue</div>
-                <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">
-                  {detail?.max_queue_length ?? 0}
-                </div>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-dashdark-bg">
-                <div className="text-slate-500 dark:text-dashdark-muted">Signal Cycle</div>
-                <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">
-                  {detail?.signal_cycle ?? 0}
-                </div>
-              </div>
-            </CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-dashdark-border bg-slate-50 dark:bg-dashdark-bg">
+                    {['#', t('intersection'), t('evalAvgDelay'), t('evalAvgSpeed'), 'Queue', 'LOS'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold text-slate-500 dark:text-dashdark-muted whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpiList.map((k, i) => (
+                    <tr
+                      key={k.intersection_id}
+                      className={`border-b border-slate-50 dark:border-dashdark-border ${
+                        i % 2 !== 0 ? 'bg-slate-50/50 dark:bg-dashdark-bg/30' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-2.5 text-slate-400">{i + 1}</td>
+                      <td className="px-4 py-2.5 font-medium text-slate-700 dark:text-dashdark-text whitespace-nowrap">
+                        {k.intersection_name || `ID ${k.intersection_id}`}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 dark:text-dashdark-muted">
+                        {(k.avg_delay || 0).toFixed(1)}s
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 dark:text-dashdark-muted">
+                        {(k.avg_speed || 0).toFixed(1)} km/h
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-600 dark:text-dashdark-muted">
+                        {(k.queue_length || 0).toFixed(0)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className="font-black px-2 py-0.5 rounded text-white text-[11px]"
+                          style={{ backgroundColor: LOS_COLORS[k.los] || '#8b5cf6' }}
+                        >
+                          {k.los || 'A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </motion.div>
   );
 }
