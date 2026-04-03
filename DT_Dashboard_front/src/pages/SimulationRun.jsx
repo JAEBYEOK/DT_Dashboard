@@ -10,7 +10,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { motion } from "framer-motion";
 import { Play, Server, Cpu, AlertCircle, CheckCircle } from "lucide-react";
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function SimulationRun() {
   const { t } = useLanguage();

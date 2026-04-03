@@ -14,7 +14,7 @@ import TrafficVolumeDisplay from "../components/dashboard/TrafficVolumeDisplay";
 import VissimNetworkStatus from "../components/dashboard/VissimNetworkStatus";
 import { AnimatedCounter } from "../components/ui/AnimatedCounter"; // [Motion]
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // [Animation Variants] 등장 애니메이션 설정
 const containerVariants = {

@@ -13,7 +13,7 @@ import TrafficVolumeDisplay from "../../components/dashboard/TrafficVolumeDispla
 // 다국어 지원 Context 임포트
 import { useLanguage } from "../../context/LanguageContext";
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const hudCardStyle = "bg-slate-950/90 backdrop-blur-md border-slate-800/80 shadow-2xl";
 

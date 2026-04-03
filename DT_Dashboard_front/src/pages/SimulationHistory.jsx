@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { History, Clock, CheckCircle, XCircle, Loader, Info } from "lucide-react";
 import { format } from 'date-fns';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const STATUS_CONFIG = {
   queued:  { icon: Clock,        color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20',  label: 'Queued'  },

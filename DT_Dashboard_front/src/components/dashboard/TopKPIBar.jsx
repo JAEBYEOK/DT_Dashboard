@@ -5,7 +5,7 @@ import { Activity, Car, AlertTriangle, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function TopKPIBar() {
   // 1. 교차로 데이터 (운영 교차로 수)

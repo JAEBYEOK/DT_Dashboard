@@ -5,7 +5,7 @@ import { AlertTriangle, CheckCircle2, FileWarning, Layers3, Signal } from "lucid
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL;
 
 function SummaryMetric({ icon: Icon, label, value, tone = "slate" }) {
   const tones = {

@@ -10,7 +10,7 @@ import { Route, Clock, Trash2, MapPin, Loader2, Lock, Unlock, Timer, Car, ArrowR
 import 'leaflet/dist/leaflet.css';
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // [아이콘 정의 유지]
 const intersectionIcon = new L.Icon({

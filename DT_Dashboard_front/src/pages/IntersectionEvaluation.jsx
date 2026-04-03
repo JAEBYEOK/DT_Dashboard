@@ -12,7 +12,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const LOS_COLORS = {
   A: '#22c55e', B: '#84cc16', C: '#eab308',
