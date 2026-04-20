@@ -1,9 +1,41 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_INPX_PATH =
-  process.env.VISSIM_INPX_PATH ||
-  'C:\\Users\\kaistys\\Desktop\\6_vissim\\Naepo+all_v3_ped_sc_mgnt_opt.inpx';
+const LEGACY_WINDOWS_INPX_PATH = 'C:\\Users\\kaistys\\Desktop\\6_vissim\\Naepo+all_v3_ped_sc_mgnt_opt.inpx';
+
+function isWindowsAbsolutePath(targetPath = '') {
+  return /^[a-zA-Z]:[\\/]/.test(String(targetPath));
+}
+
+function resolveInputPath(inputPath = '') {
+  if (!inputPath) return '';
+  if (path.isAbsolute(inputPath) || isWindowsAbsolutePath(inputPath)) return inputPath;
+  return path.resolve(inputPath);
+}
+
+function resolveDefaultInpxPath() {
+  const configuredBaseDir = process.env.VISSIM_BASE_DIR;
+  const candidates = [
+    process.env.VISSIM_INPX_PATH,
+    configuredBaseDir ? path.join(configuredBaseDir, 'practice.inpx') : null,
+    path.join(process.cwd(), 'data', 'practice.inpx'),
+    path.resolve(__dirname, '..', 'data', 'practice.inpx'),
+    '/opt/render/project/src/VIssim/practice.inpx',
+    '/opt/render/project/src/DT_Dashboard_back/data/practice.inpx',
+    path.join(process.env.USERPROFILE || 'C:\\Users\\kaistys', 'Desktop', 'VIssim', 'practice.inpx'),
+    LEGACY_WINDOWS_INPX_PATH,
+  ]
+    .filter(Boolean)
+    .map(resolveInputPath);
+
+  const matched = candidates.find((candidatePath) => fs.existsSync(candidatePath));
+  return {
+    resolvedPath: matched || candidates[0] || '',
+    candidates,
+  };
+}
+
+const DEFAULT_INPX_PATH = resolveDefaultInpxPath().resolvedPath;
 
 function decodeBase64Utf8(value = '') {
   return Buffer.from(value, 'base64').toString('utf8');
@@ -31,8 +63,25 @@ function normalizeName(value = '') {
   return String(value).replace(/\s+/g, '').trim();
 }
 
-function parseVissimNetwork(inpxPath = DEFAULT_INPX_PATH) {
-  const resolvedPath = path.resolve(inpxPath);
+function parseVissimNetwork(inpxPath) {
+  const defaults = resolveDefaultInpxPath();
+  const requestedPath = inpxPath ? resolveInputPath(inpxPath) : defaults.resolvedPath;
+  const resolvedPath = requestedPath;
+
+  if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+    const candidateList = defaults.candidates
+      .map((candidate, index) => `${index + 1}. ${candidate}`)
+      .join(' | ');
+
+    throw new Error(
+      [
+        `VISSIM INPX file was not found: ${resolvedPath || '(empty path)'}`,
+        `Set VISSIM_INPX_PATH or VISSIM_BASE_DIR.`,
+        `Checked candidates: ${candidateList}`,
+      ].join(' ')
+    );
+  }
+
   const xml = fs.readFileSync(resolvedPath, 'utf8');
   const fileStats = fs.statSync(resolvedPath);
 

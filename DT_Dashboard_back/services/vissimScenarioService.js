@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -9,7 +10,28 @@ const Intersection = require('../models/Intersection');
 const SimulationComparison = require('../models/SimulationComparison');
 const SimulationJob = require('../models/SimulationJob');
 
-const DEFAULT_VISSIM_BASE_DIR = process.env.VISSIM_BASE_DIR || 'C:\\Users\\kaistys\\Desktop\\VIssim';
+function pickDefaultVissimBaseDir() {
+  const candidates = [
+    process.env.VISSIM_BASE_DIR,
+    path.join(process.cwd(), 'VIssim'),
+    path.join(process.cwd(), 'data'),
+    '/opt/render/project/src/VIssim',
+    '/opt/render/project/src/DT_Dashboard_back/data',
+    path.join(process.env.USERPROFILE || 'C:\\Users\\kaistys', 'Desktop', 'VIssim'),
+  ].filter(Boolean);
+
+  const matched = candidates.find((candidatePath) => {
+    try {
+      return fs.existsSync(candidatePath);
+    } catch {
+      return false;
+    }
+  });
+
+  return matched || candidates[0];
+}
+
+const DEFAULT_VISSIM_BASE_DIR = pickDefaultVissimBaseDir();
 const DEFAULT_VISSIM_PYTHON_BIN = process.env.VISSIM_PYTHON_BIN || 'python';
 const DEFAULT_MODEL_ID = process.env.VISSIM_MODEL_ID || 'vissim_practice';
 const DEFAULT_OPTION_SCENARIO_ID = process.env.VISSIM_OPTION_SCENARIO_ID || '';
