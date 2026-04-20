@@ -4,11 +4,31 @@ const SimulationModel = require('../models/SimulationModel');
 const Scenario = require('../models/Scenario');
 const SimulationJob = require('../models/SimulationJob');
 const { createSimulationJob } = require('../services/jobService');
+const {
+  syncVissimScenarioCatalog,
+  syncComparisonSnapshots,
+  processScenarioJob,
+} = require('../services/vissimScenarioService');
 
 const router = express.Router();
 
+async function ensureScenarioCatalog() {
+  const [modelCount, scenarioCount] = await Promise.all([
+    SimulationModel.estimatedDocumentCount(),
+    Scenario.estimatedDocumentCount(),
+  ]);
+
+  if (modelCount > 0 && scenarioCount > 0) {
+    return;
+  }
+
+  await syncVissimScenarioCatalog();
+  await syncComparisonSnapshots();
+}
+
 router.get('/vissim/models', async (req, res) => {
   try {
+    await ensureScenarioCatalog();
     const models = await SimulationModel.find().sort({ status: 1, model_name: 1 });
     res.json(models);
   } catch (err) {
@@ -18,6 +38,7 @@ router.get('/vissim/models', async (req, res) => {
 
 router.get('/scenarios', async (req, res) => {
   try {
+    await ensureScenarioCatalog();
     const query = {};
 
     if (req.query.model_id) query.model_id = req.query.model_id;
@@ -40,6 +61,9 @@ router.post('/simulations', async (req, res) => {
     }
 
     const job = await createSimulationJob(req.body);
+    processScenarioJob(job).catch((error) => {
+      console.error(`[Simulation Job Error] ${job.job_id}:`, error.message);
+    });
 
     res.status(201).json({
       job_id: job.job_id,

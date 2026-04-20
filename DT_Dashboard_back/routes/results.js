@@ -5,17 +5,77 @@ const SimulationResult = require('../models/SimulationResult');
 const IntersectionKpi = require('../models/IntersectionKpi');
 const RouteResult = require('../models/RouteResult');
 const TrajStats = require('../models/TrajStats');
+const Scenario = require('../models/Scenario');
 const { buildComparisonResponse } = require('../services/resultAggregator');
+const { aggregateScenarioMetrics } = require('../services/vissimScenarioService');
 
 const router = express.Router();
 
+function buildScenarioSnapshot(metrics, intersectionId) {
+  const targetIntersectionId = Number.isFinite(intersectionId) ? intersectionId : null;
+  const intersectionRow =
+    targetIntersectionId === null
+      ? null
+      : (metrics.intersections || []).find(
+          (item) => Number(item.intersection_id) === targetIntersectionId
+        ) || null;
+
+  const network = metrics.network || {};
+
+  return {
+    intersection_id: targetIntersectionId ?? intersectionRow?.intersection_id ?? null,
+    total_volume:
+      intersectionRow?.total_volume !== undefined
+        ? Number(intersectionRow.total_volume)
+        : Number(network.total_volume || 0),
+    avg_speed: Number(network.avg_speed || 0),
+    avg_delay:
+      intersectionRow?.avg_delay !== undefined
+        ? Number(intersectionRow.avg_delay)
+        : Number(network.avg_delay || 0),
+    avg_travel_time: Number(network.avg_travel_time || 0),
+    total_distance: Number(network.total_distance || 0),
+  };
+}
+
+async function resolveScenarioIds(baseScenarioId, optionScenarioId) {
+  const scenarioDocs = await Scenario.find().select('scenario_id scenario_name').lean();
+  const byId = new Map(scenarioDocs.map((doc) => [doc.scenario_id, doc]));
+
+  const baseId = baseScenarioId || 'S000001';
+
+  let optionId = optionScenarioId;
+  if (!optionId) {
+    optionId =
+      scenarioDocs
+        .map((doc) => doc.scenario_id)
+        .filter((scenarioId) => scenarioId !== baseId)
+        .sort()
+        .at(-1) || null;
+  }
+
+  return {
+    baseId,
+    optionId,
+    baseName: byId.get(baseId)?.scenario_name || baseId,
+    optionName: byId.get(optionId)?.scenario_name || optionId,
+  };
+}
+
 router.get('/results/comparison', async (req, res) => {
   try {
-    const { intersection_id, base_job_id, option_job_id } = req.query;
+    const {
+      intersection_id,
+      base_job_id,
+      option_job_id,
+      base_scenario_id,
+      option_scenario_id,
+    } = req.query;
+    const numericIntersectionId = intersection_id ? Number(intersection_id) : null;
 
     if (base_job_id && option_job_id) {
       const query = {};
-      if (intersection_id) query.intersection_id = Number(intersection_id);
+      if (Number.isFinite(numericIntersectionId)) query.intersection_id = numericIntersectionId;
 
       const [baseDoc, optionDoc] = await Promise.all([
         SimulationResult.findOne({ ...query, job_id: base_job_id }),
@@ -25,7 +85,38 @@ router.get('/results/comparison', async (req, res) => {
       return res.json(buildComparisonResponse(baseDoc || {}, optionDoc || {}));
     }
 
-    const query = intersection_id ? { intersection_id: Number(intersection_id) } : {};
+    if (base_scenario_id || option_scenario_id) {
+      const { baseId, optionId, baseName, optionName } = await resolveScenarioIds(
+        base_scenario_id,
+        option_scenario_id
+      );
+
+      if (!optionId) {
+        return res.status(400).json({ message: 'Option scenario could not be resolved.' });
+      }
+
+      const [baseMetrics, optionMetrics] = await Promise.all([
+        aggregateScenarioMetrics(baseId),
+        aggregateScenarioMetrics(optionId),
+      ]);
+
+      const baseDoc = buildScenarioSnapshot(baseMetrics, numericIntersectionId);
+      const optionDoc = buildScenarioSnapshot(optionMetrics, numericIntersectionId);
+      const payload = buildComparisonResponse(baseDoc, optionDoc);
+
+      payload.scenario = {
+        base_scenario_id: baseId,
+        base_scenario_name: baseName,
+        option_scenario_id: optionId,
+        option_scenario_name: optionName,
+      };
+
+      return res.json(payload);
+    }
+
+    const query = Number.isFinite(numericIntersectionId)
+      ? { intersection_id: numericIntersectionId }
+      : {};
     const docs = await SimulationComparison.find(query);
     const baseDoc = docs.find((doc) => doc.scenario_name === 'Base');
     const optionDoc = docs.find((doc) => doc.scenario_name === 'Option');

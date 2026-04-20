@@ -2,6 +2,10 @@ const express = require('express');
 
 const SimulationJob = require('../models/SimulationJob');
 const { parseVissimNetwork, normalizeName } = require('../services/vissimNetworkService');
+const {
+  syncVissimScenarioCatalog,
+  syncComparisonSnapshots,
+} = require('../services/vissimScenarioService');
 
 const router = express.Router();
 
@@ -69,6 +73,20 @@ router.get('/system/vissim-network/intersection', async (req, res) => {
       query: name,
       match: exactMatch || partialMatches[0] || null,
       candidates: partialMatches.slice(0, 5),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/system/vissim-sync', async (req, res) => {
+  try {
+    const catalog = await syncVissimScenarioCatalog();
+    const comparison = await syncComparisonSnapshots();
+    res.json({
+      message: 'VISSIM scenario catalog synced successfully.',
+      catalog,
+      comparison,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

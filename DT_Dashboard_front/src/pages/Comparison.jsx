@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from 'axios';
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, LabelList
@@ -35,10 +36,18 @@ const itemVariants = {
 export default function Comparison() {
   const { t } = useLanguage();
   const [selectedIntersection, setSelectedIntersection] = useState(null);
+  const [baseScenarioId, setBaseScenarioId] = useState('');
+  const [optionScenarioId, setOptionScenarioId] = useState('');
   
   const { data: intersections, isLoading: isIntersectionsLoading } = useQuery({
     queryKey: ['intersections'],
     queryFn: () => axios.get(`${API_URL}/intersections`).then(res => res.data),
+    initialData: [],
+  });
+
+  const { data: scenarios = [], isLoading: isScenariosLoading } = useQuery({
+    queryKey: ['comparisonScenarios'],
+    queryFn: () => axios.get(`${API_URL}/scenarios`).then(res => res.data),
     initialData: [],
   });
 
@@ -48,23 +57,61 @@ export default function Comparison() {
     }
   }, [intersections, selectedIntersection]);
 
+  useEffect(() => {
+    if (!Array.isArray(scenarios) || scenarios.length === 0) return;
+
+    const sortedScenarios = [...scenarios].sort((a, b) => String(a.scenario_id).localeCompare(String(b.scenario_id)));
+    const baseCandidate = sortedScenarios.find((item) => item.scenario_id === 'S000001') || sortedScenarios[0];
+
+    if (!baseScenarioId || !sortedScenarios.some((item) => item.scenario_id === baseScenarioId)) {
+      setBaseScenarioId(baseCandidate?.scenario_id || '');
+    }
+
+    const optionCandidates = sortedScenarios.filter(
+      (item) => item.scenario_id !== (baseScenarioId || baseCandidate?.scenario_id)
+    );
+
+    if (
+      !optionScenarioId ||
+      optionScenarioId === (baseScenarioId || baseCandidate?.scenario_id) ||
+      !sortedScenarios.some((item) => item.scenario_id === optionScenarioId)
+    ) {
+      const defaultOption = optionCandidates.at(-1) || sortedScenarios.at(-1);
+      if (defaultOption?.scenario_id && defaultOption.scenario_id !== (baseScenarioId || baseCandidate?.scenario_id)) {
+        setOptionScenarioId(defaultOption.scenario_id);
+      }
+    }
+  }, [scenarios, baseScenarioId, optionScenarioId]);
+
   const selectedIntersectionId = selectedIntersection?.intersection_id;
 
   const { data: comparison, isLoading: isComparisonsLoading } = useQuery({
-    queryKey: ['results-comparison', selectedIntersectionId],
-    enabled: Boolean(selectedIntersectionId),
+    queryKey: ['results-comparison', selectedIntersectionId, baseScenarioId, optionScenarioId],
+    enabled: Boolean(selectedIntersectionId && baseScenarioId && optionScenarioId),
     queryFn: () =>
       axios
         .get(`${API_URL}/results/comparison`, {
-          params: { intersection_id: selectedIntersectionId },
+          params: {
+            intersection_id: selectedIntersectionId,
+            base_scenario_id: baseScenarioId,
+            option_scenario_id: optionScenarioId,
+          },
         })
         .then((res) => res.data),
     initialData: null,
   });
 
-  const isLoading = isComparisonsLoading || isIntersectionsLoading;
+  const isLoading = isComparisonsLoading || isIntersectionsLoading || isScenariosLoading;
   const baseData = comparison?.base || {};
   const optionData = comparison?.option || {};
+  const resolvedBaseScenarioName =
+    comparison?.scenario?.base_scenario_name ||
+    scenarios.find((item) => item.scenario_id === baseScenarioId)?.scenario_name ||
+    t('base');
+  const resolvedOptionScenarioName =
+    comparison?.scenario?.option_scenario_name ||
+    scenarios.find((item) => item.scenario_id === optionScenarioId)?.scenario_name ||
+    t('option');
 
   const getMetricValue = (data, type) => {
     if (!data) return 0;
@@ -253,18 +300,64 @@ export default function Comparison() {
             <motion.div variants={itemVariants} className="mb-4 shrink-0">
               <Card className="bg-white dark:bg-dashdark-card border-slate-200 dark:border-dashdark-border shadow-sm">
                 <CardContent className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-dashdark-muted">
-                        Selected Intersection
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-dashdark-muted">
+                          Selected Intersection
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+                          {selectedIntersection?.intersection_name || '-'}
+                        </div>
                       </div>
-                      <div className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-                        {selectedIntersection?.intersection_name || '-'}
+                      <div className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                        ID {selectedIntersectionId || '-'}
                       </div>
                     </div>
-                    <div className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
-                      ID {selectedIntersectionId || '-'}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Base Scenario</div>
+                        <Select value={baseScenarioId} onValueChange={setBaseScenarioId}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select base scenario" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {scenarios.map((scenario) => (
+                              <SelectItem key={scenario.scenario_id} value={scenario.scenario_id}>
+                                {scenario.scenario_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Option Scenario</div>
+                        <Select value={optionScenarioId} onValueChange={setOptionScenarioId}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Select option scenario" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {scenarios
+                              .filter((scenario) => scenario.scenario_id !== baseScenarioId)
+                              .map((scenario) => (
+                                <SelectItem key={scenario.scenario_id} value={scenario.scenario_id}>
+                                  {scenario.scenario_name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      Before: {resolvedBaseScenarioName}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-1 font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                      After: {resolvedOptionScenarioName}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -305,6 +398,7 @@ export default function Comparison() {
                                                 <p className="text-xl font-black text-slate-700 dark:text-slate-200 leading-none">
                                                   <AnimatedCounter value={baseVal} />
                                                 </p>
+                                                <p className="text-[10px] text-slate-400 truncate mt-1">{resolvedBaseScenarioName}</p>
                                             </div>
                                             <div className="w-px h-8 bg-slate-100 dark:bg-slate-800 mx-2" />
                                             <div className="text-center flex-1">
@@ -312,6 +406,7 @@ export default function Comparison() {
                                                 <p className="text-xl font-black text-violet-600 dark:text-violet-400 leading-none">
                                                   <AnimatedCounter value={optionVal} />
                                                 </p>
+                                                <p className="text-[10px] text-violet-500 truncate mt-1">{resolvedOptionScenarioName}</p>
                                             </div>
                                         </div>
 
